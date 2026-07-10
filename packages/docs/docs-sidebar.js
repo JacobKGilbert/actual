@@ -176,6 +176,7 @@ const sidebars = {
                 'advanced/bank-sync/gocardless',
                 'advanced/bank-sync/simplefin',
                 'advanced/bank-sync/pluggyai',
+                'advanced/bank-sync/plaid',
               ],
             },
             'advanced/scripts/modify-transfers',

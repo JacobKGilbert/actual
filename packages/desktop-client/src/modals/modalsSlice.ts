@@ -136,6 +136,19 @@ export type Modal =
       };
     }
   | {
+      name: 'plaid-init';
+      options: {
+        onSuccess: () => void;
+      };
+    }
+  | {
+      name: 'plaid-link';
+      options: {
+        upgradingAccountId?: string;
+        hostedLinkUrl?: string | null;
+      };
+    }
+  | {
       name: 'enablebanking-init';
       options: {
         onSuccess: () => void;

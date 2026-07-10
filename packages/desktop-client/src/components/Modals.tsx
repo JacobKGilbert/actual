@@ -15,6 +15,8 @@ import { EditSyncAccount } from './banksync/EditSyncAccount';
 import { AccountAutocompleteModal } from './modals/AccountAutocompleteModal';
 import { AccountMenuModal } from './modals/AccountMenuModal';
 import { AkahuInitialiseModal } from './modals/AkahuInitialiseModal';
+import { PlaidInitialiseModal } from './modals/PlaidInitialiseModal';
+import { PlaidLinkModal } from './modals/PlaidLinkModal';
 import { BudgetAutomationsModal } from './modals/BudgetAutomationsModal';
 import { BudgetPageMenuModal } from './modals/BudgetPageMenuModal';
 import { CategoryAutocompleteModal } from './modals/CategoryAutocompleteModal';
@@ -192,6 +194,12 @@ export function Modals() {
 
         case 'akahu-init':
           return <AkahuInitialiseModal key={key} {...modal.options} />;
+
+        case 'plaid-init':
+          return <PlaidInitialiseModal key={key} {...modal.options} />;
+
+        case 'plaid-link':
+          return <PlaidLinkModal key={key} {...modal.options} />;
 
         case 'enablebanking-init':
           return <EnableBankingInitialiseModal key={key} {...modal.options} />;

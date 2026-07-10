@@ -250,6 +250,12 @@ export function ExperimentalFeatures() {
             >
               <Trans>Akahu Bank Sync (NZ banks)</Trans>
             </FeatureToggle>
+            <FeatureToggle
+              flag="plaidBankSync"
+              feedbackLink="https://github.com/JacobKGilbert/actual/issues"
+            >
+              <Trans>Plaid Bank Sync (BYO keys, US/CA)</Trans>
+            </FeatureToggle>
             {showServerPrefs && (
               <ServerFeatureToggle
                 prefName="flags.plugins"

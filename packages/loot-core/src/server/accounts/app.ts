@@ -32,6 +32,7 @@ import type {
   SyncServerAkahuAccount,
   SyncServerEnableBankingAccount,
   SyncServerGoCardlessAccount,
+  SyncServerPlaidAccount,
   SyncServerPluggyAiAccount,
   SyncServerSimpleFinAccount,
   TransactionEntity,
@@ -59,6 +60,7 @@ export type AccountHandlers = {
   'pluggyai-accounts-link': typeof linkPluggyAiAccount;
   'akahu-accounts-link': typeof linkAkahuAccount;
   'enablebanking-accounts-link': typeof linkEnableBankingAccount;
+  'plaid-accounts-link': typeof linkPlaidAccount;
   'account-create': typeof createAccount;
   'account-close': typeof closeAccount;
   'account-reopen': typeof reopenAccount;
@@ -71,6 +73,7 @@ export type AccountHandlers = {
   'simplefin-status': typeof simpleFinStatus;
   'pluggyai-status': typeof pluggyAiStatus;
   'akahu-status': typeof akahuStatus;
+  'plaid-status': typeof plaidStatus;
   'enablebanking-status': typeof enableBankingStatus;
   'enablebanking-aspsps': typeof enableBankingAspsps;
   'enablebanking-start-auth': typeof enableBankingStartAuth;
@@ -81,6 +84,9 @@ export type AccountHandlers = {
   'simplefin-accounts': typeof simpleFinAccounts;
   'pluggyai-accounts': typeof pluggyAiAccounts;
   'akahu-accounts': typeof akahuAccounts;
+  'plaid-accounts': typeof plaidAccounts;
+  'plaid-create-link-token': typeof plaidCreateLinkToken;
+  'plaid-exchange-public-token': typeof plaidExchangePublicToken;
   'gocardless-get-banks': typeof getGoCardlessBanks;
   'gocardless-create-web-token': typeof createGoCardlessWebToken;
   'accounts-bank-sync': typeof accountsBankSync;
@@ -431,6 +437,81 @@ async function linkAkahuAccount({
       bank: bank.id,
       offbudget: offBudget ? 1 : 0,
       account_sync_source: 'akahu',
+    });
+    await db.insertPayee({
+      name: '',
+      transfer_acct: id,
+    });
+  }
+
+  const syncRes = await bankSync.syncAccount(
+    undefined,
+    undefined,
+    id,
+    externalAccount.account_id,
+    bank.bank_id,
+    startingDate,
+    startingBalance,
+  );
+
+  await handleSyncResponse(syncRes, id);
+
+  connection.send('sync-event', {
+    type: 'success',
+    tables: ['transactions'],
+  });
+
+  return 'ok';
+}
+
+
+async function linkPlaidAccount({
+  externalAccount,
+  upgradingId,
+  offBudget = false,
+  startingDate,
+  startingBalance,
+}: LinkAccountBaseParams & {
+  externalAccount: SyncServerPlaidAccount;
+}) {
+  let id;
+
+  const institution = {
+    name: externalAccount.institution ?? null,
+  };
+
+  const bank = await link.findOrCreateBank(
+    institution,
+    externalAccount.orgDomain ?? externalAccount.orgId ?? externalAccount.item_id,
+  );
+
+  if (upgradingId) {
+    const accRow = await db.first<db.DbAccount>(
+      'SELECT * FROM accounts WHERE id = ?',
+      [upgradingId],
+    );
+
+    if (!accRow) {
+      throw new Error(`Account with ID ${upgradingId} not found.`);
+    }
+
+    id = accRow.id;
+    await db.update('accounts', {
+      id,
+      account_id: externalAccount.account_id,
+      bank: bank.id,
+      account_sync_source: 'plaid',
+    });
+  } else {
+    id = uuidv4();
+    await db.insertWithUUID('accounts', {
+      id,
+      account_id: externalAccount.account_id,
+      name: externalAccount.name,
+      official_name: externalAccount.name,
+      bank: bank.id,
+      offbudget: offBudget ? 1 : 0,
+      account_sync_source: 'plaid',
     });
     await db.insertPayee({
       name: '',
@@ -1021,6 +1102,108 @@ async function akahuAccounts() {
   } catch {
     return { error_code: 'TIMED_OUT' };
   }
+}
+
+
+async function plaidStatus() {
+  const userToken = await asyncStorage.getItem('user-token');
+
+  if (!userToken) {
+    return { error: 'unauthorized' };
+  }
+
+  const serverConfig = getServer();
+  if (!serverConfig) {
+    throw new Error('Failed to get server config.');
+  }
+
+  return post(
+    serverConfig.PLAID_SERVER + '/status',
+    {},
+    {
+      'X-ACTUAL-TOKEN': userToken,
+    },
+  );
+}
+
+async function plaidAccounts() {
+  const userToken = await asyncStorage.getItem('user-token');
+
+  if (!userToken) {
+    return { error: 'unauthorized' };
+  }
+
+  const serverConfig = getServer();
+  if (!serverConfig) {
+    throw new Error('Failed to get server config.');
+  }
+
+  try {
+    return await post(
+      serverConfig.PLAID_SERVER + '/accounts',
+      {},
+      {
+        'X-ACTUAL-TOKEN': userToken,
+      },
+      60000,
+    );
+  } catch {
+    return { error: 'failed' };
+  }
+}
+
+async function plaidCreateLinkToken({
+  clientUserId,
+  redirectUri,
+}: {
+  clientUserId?: string;
+  redirectUri?: string;
+} = {}) {
+  const userToken = await asyncStorage.getItem('user-token');
+
+  if (!userToken) {
+    return { error: 'unauthorized' };
+  }
+
+  const serverConfig = getServer();
+  if (!serverConfig) {
+    throw new Error('Failed to get server config.');
+  }
+
+  return post(
+    serverConfig.PLAID_SERVER + '/create-link-token',
+    { clientUserId, redirectUri },
+    {
+      'X-ACTUAL-TOKEN': userToken,
+    },
+    60000,
+  );
+}
+
+async function plaidExchangePublicToken({
+  publicToken,
+}: {
+  publicToken: string;
+}) {
+  const userToken = await asyncStorage.getItem('user-token');
+
+  if (!userToken) {
+    return { error: 'unauthorized' };
+  }
+
+  const serverConfig = getServer();
+  if (!serverConfig) {
+    throw new Error('Failed to get server config.');
+  }
+
+  return post(
+    serverConfig.PLAID_SERVER + '/item/public-token/exchange',
+    { publicToken },
+    {
+      'X-ACTUAL-TOKEN': userToken,
+    },
+    60000,
+  );
 }
 
 async function enableBankingStatus() {
@@ -1753,6 +1936,7 @@ app.method('simplefin-accounts-link', linkSimpleFinAccount);
 app.method('pluggyai-accounts-link', linkPluggyAiAccount);
 app.method('akahu-accounts-link', linkAkahuAccount);
 app.method('enablebanking-accounts-link', linkEnableBankingAccount);
+app.method('plaid-accounts-link', linkPlaidAccount);
 app.method('account-create', mutator(undoable(createAccount)));
 app.method('account-close', mutator(closeAccount));
 app.method('account-reopen', mutator(undoable(reopenAccount)));
@@ -1765,6 +1949,7 @@ app.method('gocardless-status', goCardlessStatus);
 app.method('simplefin-status', simpleFinStatus);
 app.method('pluggyai-status', pluggyAiStatus);
 app.method('akahu-status', akahuStatus);
+app.method('plaid-status', plaidStatus);
 app.method('enablebanking-status', enableBankingStatus);
 app.method('enablebanking-aspsps', enableBankingAspsps);
 app.method('enablebanking-start-auth', enableBankingStartAuth);
@@ -1775,6 +1960,9 @@ app.method('enablebanking-configure', enableBankingConfigure);
 app.method('simplefin-accounts', simpleFinAccounts);
 app.method('pluggyai-accounts', pluggyAiAccounts);
 app.method('akahu-accounts', akahuAccounts);
+app.method('plaid-accounts', plaidAccounts);
+app.method('plaid-create-link-token', plaidCreateLinkToken);
+app.method('plaid-exchange-public-token', plaidExchangePublicToken);
 app.method('gocardless-get-banks', getGoCardlessBanks);
 app.method('gocardless-create-web-token', createGoCardlessWebToken);
 app.method('accounts-bank-sync', accountsBankSync);

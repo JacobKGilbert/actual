@@ -18,6 +18,7 @@ Here are a couple of considerations to know about before making the decision to 
 - GoCardless [BankAccountData](./bank-sync/gocardless.md) (European Banks, **not accepting new accounts**)
 - [SimpleFIN Bridge](./bank-sync/simplefin.md) (North American Banks)
 - [Pluggy.ai](./bank-sync/pluggyai.md) (Brazilian Banks)
+- [Plaid](./bank-sync/plaid.md) (US/Canadian banks, experimental, bring-your-own keys)
 
 ### Retrieve Transactions
 
